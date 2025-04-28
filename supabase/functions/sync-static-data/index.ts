@@ -1,22 +1,42 @@
 /// <reference types="https://deno.land/types/v1.31.1/deno.d.ts" />
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Define types for dependencies
+type FetchFn = typeof fetch;
+type CreateClientFn = typeof createClient;
+
+interface SyncEnv {
+  clientId: string;
+  clientSecret: string;
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  apiRegion: string;
+  locale: string;
+}
+
+interface SyncDependencies {
+  fetch: FetchFn;
+  createClient: CreateClientFn;
+}
 
 const BLIZZARD_TOKEN_URL = "https://oauth.battle.net/token";
-// Use environment variable for region base URL
-const BLIZZARD_API_REGION = Deno.env.get("BLIZZARD_API_REGION") || "us";
-const API_BASE_URL = `https://${BLIZZARD_API_REGION}.api.blizzard.com`;
 
-const NAMESPACE_STATIC = `static-${BLIZZARD_API_REGION}`;
-const NAMESPACE_DYNAMIC = `dynamic-${BLIZZARD_API_REGION}`;
-const LOCALE = Deno.env.get("BLIZZARD_API_LOCALE") || "en_US";
+// Extracted handler function for testability
+export async function handleSyncStaticData(
+  env: SyncEnv,
+  deps: SyncDependencies
+): Promise<Response> {
+  const { clientId, clientSecret, supabaseUrl, serviceRoleKey, apiRegion, locale } = env;
+  const { fetch, createClient } = deps;
 
-serve(async (_req: Request) => {
-  const clientId = Deno.env.get("BLIZZARD_CLIENT_ID")!;
-  const clientSecret = Deno.env.get("BLIZZARD_CLIENT_SECRET")!;
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const sb = createClient(supabaseUrl, serviceRoleKey);
+  // Derive API constants from injected env vars
+  const API_BASE_URL = `https://${apiRegion}.api.blizzard.com`;
+  const NAMESPACE_STATIC = `static-${apiRegion}`;
+  const NAMESPACE_DYNAMIC = `dynamic-${apiRegion}`;
+  const LOCALE = locale;
+
+  const sb: SupabaseClient = createClient(supabaseUrl, serviceRoleKey);
 
   try {
     // 1. Get client credentials token
@@ -40,9 +60,10 @@ serve(async (_req: Request) => {
     const appAccessToken = tokenData.access_token;
 
     // 2. Fetch Playable Classes
-    const classesRes = await fetch(`${API_BASE_URL}/data/wow/playable-class/index?namespace=${NAMESPACE_STATIC}&locale=${LOCALE}&access_token=${appAccessToken}`);
+    const classesUrl = `${API_BASE_URL}/data/wow/playable-class/index?namespace=${NAMESPACE_STATIC}&locale=${LOCALE}&access_token=${appAccessToken}`;
+    const classesRes = await fetch(classesUrl);
     if (!classesRes.ok) {
-      console.error("Failed to fetch classes:", classesRes.status);
+      console.error("Failed to fetch classes:", classesRes.status, await classesRes.text());
       return new Response(`Failed to fetch classes data: ${classesRes.status}`, { status: 502 });
     }
     const classesData = await classesRes.json();
@@ -55,9 +76,10 @@ serve(async (_req: Request) => {
     }));
 
     // 3. Fetch Playable Races
-    const racesRes = await fetch(`${API_BASE_URL}/data/wow/playable-race/index?namespace=${NAMESPACE_STATIC}&locale=${LOCALE}&access_token=${appAccessToken}`);
+    const racesUrl = `${API_BASE_URL}/data/wow/playable-race/index?namespace=${NAMESPACE_STATIC}&locale=${LOCALE}&access_token=${appAccessToken}`;
+    const racesRes = await fetch(racesUrl);
     if (!racesRes.ok) {
-      console.error("Failed to fetch races:", racesRes.status);
+      console.error("Failed to fetch races:", racesRes.status, await racesRes.text());
       return new Response(`Failed to fetch races data: ${racesRes.status}`, { status: 502 });
     }
     const racesData = await racesRes.json();
@@ -69,9 +91,10 @@ serve(async (_req: Request) => {
     }));
 
     // 4. Fetch Realms
-    const realmsRes = await fetch(`${API_BASE_URL}/data/wow/realm/index?namespace=${NAMESPACE_DYNAMIC}&locale=${LOCALE}&access_token=${appAccessToken}`);
+    const realmsUrl = `${API_BASE_URL}/data/wow/realm/index?namespace=${NAMESPACE_DYNAMIC}&locale=${LOCALE}&access_token=${appAccessToken}`;
+    const realmsRes = await fetch(realmsUrl);
     if (!realmsRes.ok) {
-      console.error("Failed to fetch realms:", realmsRes.status);
+      console.error("Failed to fetch realms:", realmsRes.status, await realmsRes.text());
       return new Response(`Failed to fetch realms data: ${realmsRes.status}`, { status: 502 });
     }
     const realmsData = await realmsRes.json();
@@ -80,7 +103,7 @@ serve(async (_req: Request) => {
       id: realm.id,
       name: realm.name?.[LOCALE] || realm.name || null,
       slug: realm.slug,
-      region: BLIZZARD_API_REGION // Use region from env
+      region: apiRegion // Use region from env
     }));
 
     // 5. Upsert into database using supabase client
@@ -113,4 +136,26 @@ serve(async (_req: Request) => {
       headers: { "Content-Type": "application/json" }
     });
   }
+}
+
+// Main entry point for Deno Deploy
+serve(async (_req: Request) => { // Request is not used by this function but serve requires it
+  // Load environment variables
+  const env: SyncEnv = {
+    clientId: Deno.env.get("BLIZZARD_CLIENT_ID")!,
+    clientSecret: Deno.env.get("BLIZZARD_CLIENT_SECRET")!,
+    supabaseUrl: Deno.env.get("SUPABASE_URL")!,
+    serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    apiRegion: Deno.env.get("BLIZZARD_API_REGION") || "us",
+    locale: Deno.env.get("BLIZZARD_API_LOCALE") || "en_US",
+  };
+
+  // Prepare dependencies
+  const deps: SyncDependencies = {
+    fetch: fetch, // Use the global fetch
+    createClient: createClient // Use the imported createClient
+  };
+
+  // Call the extracted handler
+  return await handleSyncStaticData(env, deps);
 });

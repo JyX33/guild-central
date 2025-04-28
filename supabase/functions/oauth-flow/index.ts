@@ -1,16 +1,34 @@
 /// <reference types="https://deno.land/std@0.168.0/http/server.ts" />
 /// <reference types="https://esm.sh/@supabase/supabase-js@2" />
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// Define types for dependencies to improve testability and clarity
+type FetchFn = typeof fetch;
+type CreateClientFn = typeof createClient;
+
+interface OAuthEnv {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  supabaseUrl: string;
+  serviceRoleKey: string;
+}
+
+interface OAuthDependencies {
+  fetch: FetchFn;
+  createClient: CreateClientFn;
+}
 
 const BLIZZARD_AUTH_URL = "https://oauth.battle.net/authorize";
 const BLIZZARD_TOKEN_URL = "https://oauth.battle.net/token";
+const BLIZZARD_USERINFO_URL = "https://oauth.battle.net/oauth/userinfo";
 
 // Scopes for WoW profile access (openid gives BattleTag & ID, wow.profile gives game profile)
 const OAUTH_SCOPES = "openid wow.profile";
 
 // Helper to generate a random string for state (16 characters alphanumeric)
-function generateState(length = 16) {
+function generateState(length = 16): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   let result = "";
   for (let i = 0; i < length; i++) {
@@ -19,17 +37,20 @@ function generateState(length = 16) {
   return result;
 }
 
-serve(async (req: Request) => {
+// Extracted handler function for testability
+export async function handleOAuthFlow(
+  req: Request,
+  env: OAuthEnv,
+  deps: OAuthDependencies
+): Promise<Response> {
+  const { clientId, clientSecret, redirectUri, supabaseUrl, serviceRoleKey } = env;
+  const { fetch, createClient } = deps;
+
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const errorParam = url.searchParams.get("error");
 
-  // Load our config from environment
-  const clientId = Deno.env.get("BLIZZARD_CLIENT_ID")!;
-  const clientSecret = Deno.env.get("BLIZZARD_CLIENT_SECRET")!;
-  const redirectUri = Deno.env.get("BLIZZARD_OAUTH_REDIRECT_URI")!;
-  
   try {
     if (errorParam) {
       console.error("Authentication error from Blizzard:", errorParam);
@@ -92,7 +113,7 @@ serve(async (req: Request) => {
     // token_type is usually "bearer"
 
     // Step 3: Fetch user info (BattleTag and ID)
-    const userInfoResp = await fetch("https://oauth.battle.net/oauth/userinfo", {
+    const userInfoResp = await fetch(BLIZZARD_USERINFO_URL, {
       headers: {
         "Authorization": `Bearer ${accessToken}`
       }
@@ -106,10 +127,7 @@ serve(async (req: Request) => {
     const battleNetId: number = userInfo.id;  // numeric ID
 
     // Step 4: Store/Update user in the database
-    // We'll use Supabase client to upsert the user. The service role key must be available.
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);  // using supabase-js client
+    const adminClient: SupabaseClient = createClient(supabaseUrl, serviceRoleKey);
     // Upsert the user (if battlenet_id exists, update; otherwise insert)
     const { error } = await adminClient.from("users").upsert({
       battlenet_id: battleNetId,
@@ -124,8 +142,6 @@ serve(async (req: Request) => {
     }
 
     // Step 5: Finish - respond to the client
-    // At this point, the user is authenticated. We might want to create a session.
-    // For simplicity, we'll just return a message or HTML that the login succeeded.
     const responseHtml = `<html><body><script>
       // Notify parent window or application of success
       window.close();
@@ -138,4 +154,25 @@ serve(async (req: Request) => {
     console.error("Unexpected error in OAuth flow:", err);
     return new Response("Internal Server Error during OAuth process.", { status: 500 });
   }
+}
+
+// Main entry point for Deno Deploy
+serve(async (req: Request) => {
+  // Load environment variables
+  const env: OAuthEnv = {
+    clientId: Deno.env.get("BLIZZARD_CLIENT_ID")!,
+    clientSecret: Deno.env.get("BLIZZARD_CLIENT_SECRET")!,
+    redirectUri: Deno.env.get("BLIZZARD_OAUTH_REDIRECT_URI")!,
+    supabaseUrl: Deno.env.get("SUPABASE_URL")!,
+    serviceRoleKey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  };
+
+  // Prepare dependencies
+  const deps: OAuthDependencies = {
+    fetch: fetch, // Use the global fetch
+    createClient: createClient // Use the imported createClient
+  };
+
+  // Call the extracted handler
+  return await handleOAuthFlow(req, env, deps);
 });

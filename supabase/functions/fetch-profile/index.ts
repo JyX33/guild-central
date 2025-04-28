@@ -1,13 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2"; // Added SupabaseClient type import
 
-// Blizzard API base (assuming US for profile; profile calls require region too in path or host)
-const API_BASE_URL_US = "https://us.api.blizzard.com";
-const NAMESPACE_PROFILE = "profile-us";
 const LOCALE = Deno.env.get("BLIZZARD_API_LOCALE") || "en_US";
 const BLIZZARD_API_REGION = Deno.env.get("BLIZZARD_API_REGION") || "us"; // Use environment variable for region
 
-serve(async (req: Request) => {
+// Define the handler function, accepting SupabaseClient as an argument
+export const fetchProfileHandler = async (req: Request, sb: SupabaseClient): Promise<Response> => {
   const url = new URL(req.url);
   const userIdParam = url.searchParams.get("user_id");
   const battlenetIdParam = url.searchParams.get("battlenet_id");
@@ -16,12 +14,12 @@ serve(async (req: Request) => {
     return new Response("Missing user identifier (user_id or battlenet_id)", { status: 400 });
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const sb = createClient(supabaseUrl, serviceKey);
+  // const supabaseUrl = Deno.env.get("SUPABASE_URL")!; // Removed internal creation
+  // const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!; // Removed internal creation
+  // const sb = createClient(supabaseUrl, serviceKey); // Client is now passed in
 
   try {
-    // 1. Get user record and token
+    // 1. Get user record and token (using the passed-in sb client)
     let userFilter;
     if (userIdParam) {
       userFilter = { id: userIdParam };
@@ -177,4 +175,14 @@ serve(async (req: Request) => {
     console.error("Error in fetch-profile:", err);
     return new Response("Failed to sync profile data.", { status: 500 });
   }
-});
+};
+
+// Start the server only when run directly (not during import/test)
+if (import.meta.main) {
+  // Create the real client here for actual server execution
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseClient = createClient(supabaseUrl, serviceKey);
+
+  serve((req) => fetchProfileHandler(req, supabaseClient)); // Pass the real client to the handler
+}
