@@ -1,0 +1,21 @@
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# IDE configuration files
+.vscode/
+.idea/
+.history/
+
+# Dependency directories
+node_modules/
+
+#roo-code
+.roo/
+
+# Log files
+*.log
+
+# Build output directories
+build/
+dist/
