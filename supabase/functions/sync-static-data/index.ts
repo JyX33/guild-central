@@ -1,6 +1,5 @@
 /// <reference types="https://deno.land/types/v1.31.1/deno.d.ts" />
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.43.4";
 
 // Define types for dependencies
 type FetchFn = typeof fetch;
@@ -139,7 +138,7 @@ export async function handleSyncStaticData(
 }
 
 // Main entry point for Deno Deploy
-serve(async (_req: Request) => { // Request is not used by this function but serve requires it
+Deno.serve(async (_req: Request) => { // Request is not used by this function but serve requires it
   // Load environment variables
   const env: SyncEnv = {
     clientId: Deno.env.get("BLIZZARD_CLIENT_ID")!,

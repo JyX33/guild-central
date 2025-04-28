@@ -81,7 +81,7 @@ This pattern allows you to pass mocked versions of dependencies during testing.
 
 Effective mocking is essential for isolating the code under test and controlling the behavior of external dependencies.
 
-*   **Supabase Client:** Mock the specific methods your handler interacts with (`from`, `select`, `insert`, `update`, `delete`, `rpc`, etc.). Use `jest.fn()` to create mock functions and control their return values or thrown errors.
+* **Supabase Client:** Mock the specific methods your handler interacts with (`from`, `select`, `insert`, `update`, `delete`, `rpc`, etc.). Use `jest.fn()` to create mock functions and control their return values or thrown errors.
 
     ```typescript
     // Example mock for a select call
@@ -97,7 +97,7 @@ Effective mocking is essential for isolating the code under test and controlling
     expect(mockSelect).toHaveBeenCalledWith('*');
     ```
 
-*   **External APIs (e.g., Blizzard API):** If you use `fetch`, you can mock the global `fetch` function using libraries like `jest-fetch-mock` or by manually replacing `globalThis.fetch`. If you use a dedicated client library, mock the methods of that library's instance.
+* **External APIs (e.g., Blizzard API):** If you use `fetch`, you can mock the global `fetch` function using libraries like `jest-fetch-mock` or by manually replacing `globalThis.fetch`. If you use a dedicated client library, mock the methods of that library's instance.
 
     ```typescript
     // Example using jest-fetch-mock
@@ -112,15 +112,15 @@ Effective mocking is essential for isolating the code under test and controlling
     expect(fetchMock).toHaveBeenCalledWith('...');
     ```
 
-*   **Mock at the Boundary:** Mock the dependency itself, not the internal implementation details of the dependency. This ensures your tests are resilient to changes within the dependency library.
-*   **Use `__mocks__`:** For common modules or libraries, consider creating manual mocks in a `__mocks__` directory adjacent to the module. This keeps your test files cleaner.
+* **Mock at the Boundary:** Mock the dependency itself, not the internal implementation details of the dependency. This ensures your tests are resilient to changes within the dependency library.
+* **Use `__mocks__`:** For common modules or libraries, consider creating manual mocks in a `__mocks__` directory adjacent to the module. This keeps your test files cleaner.
 
 ## 4. Environment Variable Setup
 
 Edge Functions rely on environment variables for configuration (e.g., API keys, database URLs). In tests, you need to simulate these environment variables.
 
-*   **Using `.env.test`:** Create a `.env.test` file in your project root and load it before running tests using a library like `dotenv`.
-*   **Programmatic Setup:** Set `Deno.env.set()` values directly in your test setup or before calling the handler function.
+* **Using `.env.test`:** Create a `.env.test` file in your project root and load it before running tests using a library like `dotenv`.
+* **Programmatic Setup:** Set `Deno.env.set()` values directly in your test setup or before calling the handler function.
 
     ```typescript
     // In your test file setup
@@ -133,10 +133,10 @@ Ensure all necessary environment variables are set before the code that uses the
 
 ## 5. Common Testing Patterns
 
-*   **Testing API Endpoints:**
-    *   Create a mock `Request` object with the desired method, URL, headers, and body.
-    *   Call your exported handler function with the mock request and any injected dependencies.
-    *   Assert on the returned `Response` object: check `response.status`, `response.headers`, and parse `response.json()` or `response.text()` to check the body.
+* **Testing API Endpoints:**
+  * Create a mock `Request` object with the desired method, URL, headers, and body.
+  * Call your exported handler function with the mock request and any injected dependencies.
+  * Assert on the returned `Response` object: check `response.status`, `response.headers`, and parse `response.json()` or `response.text()` to check the body.
 
     ```typescript
     const mockRequest = new Request("http://localhost/my-function", {
@@ -150,10 +150,10 @@ Ensure all necessary environment variables are set before the code that uses the
     expect(body).toEqual({ output: "success" });
     ```
 
-*   **Testing Database Operations:**
-    *   Mock the Supabase client methods as described above.
-    *   Call your handler function.
-    *   Assert that the mocked Supabase methods were called with the expected arguments.
+* **Testing Database Operations:**
+  * Mock the Supabase client methods as described above.
+  * Call your handler function.
+  * Assert that the mocked Supabase methods were called with the expected arguments.
 
     ```typescript
     await myHandler(mockRequest, mockSupabase);
@@ -161,10 +161,10 @@ Ensure all necessary environment variables are set before the code that uses the
     expect(mockSupabase.from('users').select).toHaveBeenCalledWith('id, name');
     ```
 
-*   **Testing Error Handling:**
-    *   Configure your mocks to simulate errors (e.g., `mockResolvedValue({ data: null, error: new Error('DB Error') })` for Supabase, or `fetchMock.mockRejectedValue(new Error('Network Error'))` for fetch).
-    *   Call your handler function.
-    *   Assert that the function returns an appropriate error response (e.g., status code 500, an error message in the body).
+* **Testing Error Handling:**
+  * Configure your mocks to simulate errors (e.g., `mockResolvedValue({ data: null, error: new Error('DB Error') })` for Supabase, or `fetchMock.mockRejectedValue(new Error('Network Error'))` for fetch).
+  * Call your handler function.
+  * Assert that the function returns an appropriate error response (e.g., status code 500, an error message in the body).
 
     ```typescript
     const mockSelectWithError = jest.fn().mockResolvedValue({ data: null, error: new Error('DB Error') });
@@ -179,20 +179,20 @@ Ensure all necessary environment variables are set before the code that uses the
 
 ## 6. Troubleshooting Test Issues
 
-*   **Mocks Not Working:**
-    *   Ensure your mock implementation is correctly defined and located (e.g., in `__mocks__`).
-    *   Verify that the code under test is importing the module *after* the mock is set up (e.g., using `jest.mock()` before the import).
-    *   Check for circular dependencies that might cause issues with mocking.
-*   **Environment Variables Missing:**
-    *   Double-check that your `.env.test` file is correctly loaded in your test setup.
-    *   Ensure that all environment variables accessed by the function are set before the function is called.
-    *   Remember that `Deno.env.get()` returns `string | undefined`. Handle the `undefined` case in your function logic or ensure the variable is always set in tests.
-*   **Asynchronous Operations Not Awaited:**
-    *   Ensure all `async` calls within your test and the handler function are properly `await`ed.
-    *   Jest tests should also be `async` if they contain `await` calls.
-*   **Incorrect Assertions:**
-    *   Carefully compare the actual output/behavior with the expected output/behavior.
-    *   Use Jest's matchers (`.toBe()`, `.toEqual()`, `.toHaveBeenCalledWith()`, etc.) correctly.
-    *   When asserting on response bodies, remember to `await response.json()` or `await response.text()`.
-*   **Deno vs Node.js Environment:**
-    *   Remember that Edge Functions run in a Deno environment, while Jest typically runs in a Node.js environment. Be mindful of differences in global objects (`Deno.env` vs `process.env`, `fetch` behavior, etc.) and use appropriate polyfills or mocks where necessary. The mocking techniques described above help bridge this gap.
+* **Mocks Not Working:**
+  * Ensure your mock implementation is correctly defined and located (e.g., in `__mocks__`).
+  * Verify that the code under test is importing the module *after* the mock is set up (e.g., using `jest.mock()` before the import).
+  * Check for circular dependencies that might cause issues with mocking.
+* **Environment Variables Missing:**
+  * Double-check that your `.env.test` file is correctly loaded in your test setup.
+  * Ensure that all environment variables accessed by the function are set before the function is called.
+  * Remember that `Deno.env.get()` returns `string | undefined`. Handle the `undefined` case in your function logic or ensure the variable is always set in tests.
+* **Asynchronous Operations Not Awaited:**
+  * Ensure all `async` calls within your test and the handler function are properly `await`ed.
+  * Jest tests should also be `async` if they contain `await` calls.
+* **Incorrect Assertions:**
+  * Carefully compare the actual output/behavior with the expected output/behavior.
+  * Use Jest's matchers (`.toBe()`, `.toEqual()`, `.toHaveBeenCalledWith()`, etc.) correctly.
+  * When asserting on response bodies, remember to `await response.json()` or `await response.text()`.
+* **Deno vs Node.js Environment:**
+  * Remember that Edge Functions run in a Deno environment, while Jest typically runs in a Node.js environment. Be mindful of differences in global objects (`Deno.env` vs `process.env`, `fetch` behavior, etc.) and use appropriate polyfills or mocks where necessary. The mocking techniques described above help bridge this gap.

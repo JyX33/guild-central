@@ -1,5 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2"; // Added SupabaseClient type import
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.43.4"; // Added SupabaseClient type import
 
 const LOCALE = Deno.env.get("BLIZZARD_API_LOCALE") || "en_US";
 const BLIZZARD_API_REGION = Deno.env.get("BLIZZARD_API_REGION") || "us"; // Use environment variable for region
@@ -13,10 +12,6 @@ export const fetchProfileHandler = async (req: Request, sb: SupabaseClient): Pro
   if (!userIdParam && !battlenetIdParam) {
     return new Response("Missing user identifier (user_id or battlenet_id)", { status: 400 });
   }
-
-  // const supabaseUrl = Deno.env.get("SUPABASE_URL")!; // Removed internal creation
-  // const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!; // Removed internal creation
-  // const sb = createClient(supabaseUrl, serviceKey); // Client is now passed in
 
   try {
     // 1. Get user record and token (using the passed-in sb client)
@@ -184,5 +179,5 @@ if (import.meta.main) {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabaseClient = createClient(supabaseUrl, serviceKey);
 
-  serve((req) => fetchProfileHandler(req, supabaseClient)); // Pass the real client to the handler
+  Deno.serve((req) => fetchProfileHandler(req, supabaseClient)); // Pass the real client to the handler
 }

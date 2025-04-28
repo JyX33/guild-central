@@ -1,7 +1,6 @@
 /// <reference types="https://deno.land/std@0.168.0/http/server.ts" />
 /// <reference types="https://esm.sh/@supabase/supabase-js@2" />
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.43.4";
 
 // Define types for dependencies to improve testability and clarity
 type FetchFn = typeof fetch;
@@ -157,7 +156,7 @@ export async function handleOAuthFlow(
 }
 
 // Main entry point for Deno Deploy
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   // Load environment variables
   const env: OAuthEnv = {
     clientId: Deno.env.get("BLIZZARD_CLIENT_ID")!,
