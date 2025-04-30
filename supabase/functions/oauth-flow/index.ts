@@ -1,5 +1,3 @@
-/// <reference types="https://deno.land/std@0.168.0/http/server.ts" />
-/// <reference types="https://esm.sh/@supabase/supabase-js@2" />
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.43.4";
 
 // Define types for dependencies to improve testability and clarity

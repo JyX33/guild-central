@@ -1,4 +1,3 @@
-/// <reference types="https://deno.land/types/v1.31.1/deno.d.ts" />
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.43.4";
 
 // Define types for dependencies
